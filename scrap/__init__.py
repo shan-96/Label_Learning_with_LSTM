@@ -13,9 +13,10 @@ if result.status_code == 200:
     document = Document()
     for ticket_num in range(GlobalVars.TICKET_START, GlobalVars.TICKET_END + 1):
         url = GlobalVars.URL + str(ticket_num)
-        comments, resolution = document.scrap(session, url, ticket_num)
-        writer = Writer()
-        writer.write(ticket_num, comments, resolution)
+        comments, resolution = document.scrap(session, url)
+        if(resolution != ""):
+            writer = Writer()
+            writer.write(ticket_num, comments, resolution)
         print("Entry for CXL-" + str(ticket_num) + " inserted")
 else:
     print("Could not log in")
