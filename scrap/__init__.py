@@ -1,3 +1,5 @@
+import csv
+
 import requests
 
 import scrap.GlobalVars as GlobalVars
@@ -15,8 +17,8 @@ if result.status_code == 200:
         url = GlobalVars.URL + str(ticket_num)
         comments, resolution = document.scrap(session, url)
         if(resolution != ""):
-            writer = Writer()
-            writer.write(ticket_num, comments, resolution)
+            writer = Writer(GlobalVars.FILENAME)
+            writer.write(ticket_num, comments, resolution, csv.QUOTE_ALL)
         print("Entry for CXL-" + str(ticket_num) + " inserted")
 else:
     print("Could not log in")
