@@ -1,5 +1,5 @@
-USERNAME = "shantanu.patil"
-PASSWORD = "A607716$$$"
+USERNAME = "username"
+PASSWORD = "password"
 URL = "https://portal.tpt.com/processpoint/browse/CXL-"
 LOGIN_URL = "https://portal.tpt.com/processpoint/login.jsp"
 TICKET_START = 30200
