@@ -7,5 +7,5 @@ TICKET_END = 61500
 COMMENT_SEP = "$$"
 COMMENT_START = "{{"
 COMMENT_END = "}}"
-FILENAME = "../resources/data.csv"
-
+FILENAME = "../resources/raw_data.csv"
+DATAFILENAME = "../resources/data.csv"
