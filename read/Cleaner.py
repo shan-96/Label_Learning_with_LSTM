@@ -18,9 +18,9 @@ def filter_text(comment):
 
 
 class Cleaner:
-    def explodeRow(self, row):
-        one, two, three = row.split(',')
-        return one, two, three
+    def explode_row(self, row):
+        k = row.split(',')
+        return k[0], k[1], k[2]
 
     def getComments(self, comments):
         return comments[2:-2]
