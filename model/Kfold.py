@@ -28,12 +28,18 @@ class Kfold:
             self.recall.append(recall_score(y_test, prob_pred))
             self.prec.append(precision_score(y_test, prob_pred))
 
-        pd.dataframe()
+        dict = {'data': [self.f1, self.acc, self.prec, self.recall],
+                'marker': ['o', '*', 'o', '*'],
+                'color': ['black', 'blue', 'yellow', 'red'],
+                'linestyle': ['dashed', 'dashed', 'dashed', 'dashed'],
+                'label': ['F1-Score', 'Accuracy', 'Precision', 'Recall']}
+
+        data_points = pd.DataFrame(dict)
 
         print("Average F1: " + np.mean(self.f1))
         print("Average Precision: " + np.mean(self.prec))
         print("Average Recall: " + np.mean(self.recall))
         print("Average Accuracy: " + np.mean(self.acc))
 
-        plot = Plot()
-        plot.draw()
+        plot = Plot(data_points)
+        plot.draw(20, 10, "--Various Accuracy Measures--")
