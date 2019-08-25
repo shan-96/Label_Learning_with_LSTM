@@ -1,3 +1,4 @@
+import re
 import string
 
 import stopwords as stopwords
