@@ -1,13 +1,13 @@
 import re
 import string
 
-import stopwords as stopwords
+from nltk import WordNetLemmatizer
+from nltk.corpus import stopwords
 
 from scrap.GlobalVars import COMMENT_SEP
 
 
 def filter_text(comment):
-    ##TODO: complete this method
     stop = set(stopwords.words('english'))
     exclude = set(string.punctuation)
     lemma = WordNetLemmatizer()
