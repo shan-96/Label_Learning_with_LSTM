@@ -1,10 +1,12 @@
 import csv
+import sys
 
 from read.Cleaner import Cleaner
 from scrap import Writer
 from scrap.GlobalVars import DATAFILENAME, FILENAME
 
 if __name__ == "__main__":
+    csv.field_size_limit(sys.maxsize)
     cleaner = Cleaner()
     writer = Writer(DATAFILENAME)
 
@@ -12,9 +14,9 @@ if __name__ == "__main__":
         reader = csv.reader(csvfile, delimiter=',')
         for row in reader:
             jira, comments, resolution = cleaner.explode_row(row)
-            if (jira != "jira"):
+            if jira != "jira":
                 comments = cleaner.getComments(comments)
                 comments = cleaner.clean(comments)
             writer.write(jira, comments, resolution, csv.QUOTE_NONE)
-            if (jira != "jira"):
+            if jira != "jira":
                 print("Entry inserted for CXL-" + jira)
