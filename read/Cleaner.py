@@ -3,25 +3,30 @@ import string
 
 from nltk import WordNetLemmatizer
 from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 
 from scrap.GlobalVars import COMMENT_SEP
 
 
-def filter_text(comment):
-    stop = set(stopwords.words('english'))
-    exclude = set(string.punctuation)
+def remove_punctuation(comment):
+    comment = comment.translate(str.maketrans('', '', string.punctuation)).lower()
+    return re.sub(r'\d+', '', process(comment))
+
+
+def process(comment):
     lemma = WordNetLemmatizer()
-    comment = re.sub('[^A-Za-z0-9]+', ' ', comment)
-    stop_free = " ".join([i for i in comment.lower().split() if i not in stop])
-    punc_free = ''.join(ch for ch in stop_free if ch not in exclude)
-    normalized = " ".join(lemma.lemmatize(word) for word in punc_free.split())
-    return normalized.lower()
+    stop_words = set(stopwords.words('english'))
+    tokens = word_tokenize(comment)
+    filtered_sentence = ""
+    for w in tokens:
+        if not w in stop_words:
+            filtered_sentence = filtered_sentence + lemma.lemmatize(w) + " "
+    return filtered_sentence
 
 
 class Cleaner:
     def explode_row(self, row):
-        k = row.split(',')
-        return k[0], k[1], k[2]
+        return row[0], row[1], row[2]
 
     def getComments(self, comments):
         return comments[2:-2]
@@ -29,7 +34,8 @@ class Cleaner:
     def clean(self, comments):
         cleaned_comments = ""
         for comment in comments.split(COMMENT_SEP):
-            comment = filter_text(comment)
-            cleaned_comments = comment + COMMENT_SEP
+            comment = remove_punctuation(comment)
+            comment = process(comment)
+            cleaned_comments = cleaned_comments + comment
 
         return cleaned_comments
