@@ -6,7 +6,7 @@ from sklearn.model_selection import StratifiedKFold
 from model.Plot import Plot
 
 
-##TODO: build this model
+##TODO: complete this class
 class Kfold:
     skf = None
     f1 = []
@@ -17,12 +17,12 @@ class Kfold:
     def __init__(self, n_splits, random_state):
         self.skf = StratifiedKFold(n_splits=n_splits, random_state=random_state)
 
-    def build(self):
+    def build(self, X, y, model):
         for train_index, test_index in self.skf.split(X, y):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            clf_rf.fit(X_train, y_train)
-            prob_pred = list(map(return_max, clf_rf.predict_proba(X_test)))
+            model.fit(X_train, y_train)
+            prob_pred = list(map(return_max, model.predict_proba(X_test)))
             self.f1.append(f1_score(y_test, prob_pred))
             self.acc.append(accuracy_score(y_test, prob_pred))
             self.recall.append(recall_score(y_test, prob_pred))

@@ -1,0 +1,99 @@
+import re
+
+import numpy as np
+import pandas as pd
+from metal.label_model.baselines import MajorityLabelVoter
+
+
+class CommentSnorkel:
+    # voting scores
+    POSITIVE = 1
+    NEGATIVE = -1
+    ABSTAIN = 0
+
+    # labels/JIRA resolutions
+    labels = {
+        'Fixed': 0,
+        'As Designed': 1,
+        'Training': 2,
+        'Not an Issue': 3,
+        'Request Completed': 4,
+        'Deferred': 5,
+        'Duplicate': 6,
+        'Cannot Reproduce': 7,
+        '3rd Party Request Completed': 8,
+        'Lack of Response': 9,
+        'ASP Request Completed': 10,
+        'Implementation': 11,
+        'Design Gap': 12,
+        'Fixed in a Later Version': 13,
+        'Unresolved': 14,
+        'Feature Request': 15,
+        'Dropped': 16,
+        'Done': 17,
+        'Customer Accepted': 18,
+        'Working as Expected': 19,
+        'Functional Gap': 20,
+        'Enhancement Required': 21,
+        'Documentation Provided': 22,
+        'Enhancement implemented': 23,
+        'Training Provided': 24,
+        'Won\'t Do': 25,
+        'On hold': 26
+    }
+
+    # we will only try to label our ticket as fixed out of the above labels on our data
+    # which means we need to take into consideration only data points labelled as 'fixed'
+
+    # LF1 - try to mark the jira fixed
+    def mark_fixed(self, comments):
+        KEYS = r"\bticket (mark|fix|done|ok|verify|verified|close|resolve)"
+        return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
+
+    # LF2 - try to check if it is not fixed
+    def check_fixed(self, comments):
+        KEYS = r"\bticket (incorrect|wrong|waiting|open|update|move)"
+        return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
+
+    # on a fairly good amount of train data 2 LFs might just work
+    # we can now start making the Ls matrix from the LFs by applying every LF on each of the data point
+    def make_Ls_matrix(self, data, LFs):
+        noisy_labels = np.empty((len(data), len(LFs)))
+        for i, row in data.iterrows():
+            for j, lf in enumerate(LFs):
+                noisy_labels[i][j] = lf(row)
+        return noisy_labels
+
+    def get_label(self, text):
+        return self.labels.get(text) if self.labels.get(text) is not None else -1
+
+    def function(self):
+        # ensure csv data only has fixed and not fixed
+        train = pd.read_csv("training csv file")  # large number of unlabelled tickets
+        test = pd.read_csv("testing csv file")  # small number of labelled tickets
+        LF_set = pd.read_csv("label function csv file")  # labelled tickets for building LF
+
+        LFs = ['mark_fixed', 'check_fixed']
+        LF_names = {1: 'mark_fixed', 2: 'check_fixed'}
+
+        # We build a matrix of LF votes for each comment ticket
+        LF_matrix = self.make_Ls_matrix(LF_set, LFs)
+
+        # Get true labels for LF set
+        Y_LF_set = np.array(LF_set['resolution'])
+
+        display(lf_summary(sparse.csr_matrix(LF_matrix),
+                           Y=Y_LF_set,
+                           lf_names=LF_names.values()))
+
+        mv = MajorityLabelVoter()
+        Y_train_majority_votes = mv.predict(LF_matrix)
+        print(classification_report(Y_LFs, Y_train_majority_votes))
+
+        Ls_train = self.make_Ls_matrix(train, LFs)
+
+        # You can tune the learning rate and class balance.
+        label_model = LabelModel(k=2, seed=123)
+        label_model.train_model(Ls_train, n_epochs=2000, print_every=1000,
+                                lr=0.0001,
+                                class_balance=np.array([0.2, 0.8]))
