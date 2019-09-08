@@ -2,7 +2,13 @@ import re
 
 import numpy as np
 import pandas as pd
-from metal.label_model.baselines import MajorityLabelVoter
+from displayfunction import display
+from metal import MajorityLabelVoter
+from metal.analysis import lf_summary, label_coverage
+from metal.label_model import LabelModel
+from scipy import sparse
+from sklearn.metrics import classification_report
+from snorkel.labeling import labeling_function
 
 
 class CommentSnorkel:
@@ -46,13 +52,27 @@ class CommentSnorkel:
     # which means we need to take into consideration only data points labelled as 'fixed'
 
     # LF1 - try to mark the jira fixed
+    @labeling_function()
     def mark_fixed(self, comments):
         KEYS = r"\bticket (mark|fix|done|ok|verify|verified|close|resolve)"
         return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF2 - try to check if it is not fixed
+    @labeling_function()
     def check_fixed(self, comments):
-        KEYS = r"\bticket (incorrect|wrong|waiting|open|update|move)"
+        KEYS = r"\bticket (pending|incorrect|wrong|waiting|open|update|move)"
+        return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
+
+    # LF3 - try to find false negatives
+    @labeling_function()
+    def find_false_negatives(self, comments):
+        KEYS = r"\b(question|why|not issue|not wrong)"
+        return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
+
+    # LF4 - try to find false positives
+    @labeling_function()
+    def find_false_positives(self, comments):
+        KEYS = r"\b(not fix|not done|not correct)"
         return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # on a fairly good amount of train data 2 LFs might just work
@@ -73,8 +93,8 @@ class CommentSnorkel:
         test = pd.read_csv("testing csv file")  # small number of labelled tickets
         LF_set = pd.read_csv("label function csv file")  # labelled tickets for building LF
 
-        LFs = ['mark_fixed', 'check_fixed']
-        LF_names = {1: 'mark_fixed', 2: 'check_fixed'}
+        LFs = ['mark_fixed', 'check_fixed', 'find_false_negatives', 'find_false_positives']
+        LF_names = {1: 'mark_fixed', 2: 'check_fixed', 3: 'find_false_negatives', 4: 'find_false_positives'}
 
         # We build a matrix of LF votes for each comment ticket
         LF_matrix = self.make_Ls_matrix(LF_set, LFs)
@@ -86,14 +106,16 @@ class CommentSnorkel:
                            Y=Y_LF_set,
                            lf_names=LF_names.values()))
 
+        print("label coverage: " + label_coverage(LF_matrix))
+
         mv = MajorityLabelVoter()
         Y_train_majority_votes = mv.predict(LF_matrix)
-        print(classification_report(Y_LFs, Y_train_majority_votes))
+        print("classification report:\n" + classification_report(Y_LF_set, Y_train_majority_votes))
 
         Ls_train = self.make_Ls_matrix(train, LFs)
 
         # You can tune the learning rate and class balance.
-        label_model = LabelModel(k=2, seed=123)
-        label_model.train_model(Ls_train, n_epochs=2000, print_every=1000,
+        model = LabelModel(k=2, seed=123)
+        model.train_model(Ls_train, n_epochs=2000, print_every=1000,
                                 lr=0.0001,
                                 class_balance=np.array([0.2, 0.8]))
