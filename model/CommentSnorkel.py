@@ -7,8 +7,10 @@ from metal import MajorityLabelVoter
 from metal.analysis import lf_summary, label_coverage
 from metal.label_model import LabelModel
 from scipy import sparse
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
-from snorkel.labeling import labeling_function
+from snorkel.labeling import labeling_function, PandasLFApplier
 
 
 class CommentSnorkel:
@@ -16,6 +18,11 @@ class CommentSnorkel:
     POSITIVE = 1
     NEGATIVE = -1
     ABSTAIN = 0
+
+    # ensure csv data only has fixed and not fixed
+    train = pd.read_csv("training csv file")  # large number of unlabelled tickets
+    test = pd.read_csv("testing csv file")  # small number of labelled tickets
+    LF_set = pd.read_csv("label function csv file")  # labelled tickets for building LF
 
     # labels/JIRA resolutions
     labels = {
@@ -53,27 +60,31 @@ class CommentSnorkel:
 
     # LF1 - try to mark the jira fixed
     @labeling_function()
-    def mark_fixed(self, comments):
+    def lf_mark_fixed(self, comments):
         KEYS = r"\bticket (mark|fix|done|ok|verify|verified|close|resolve)"
         return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF2 - try to check if it is not fixed
     @labeling_function()
-    def check_fixed(self, comments):
+    def lf_check_fixed(self, comments):
         KEYS = r"\bticket (pending|incorrect|wrong|waiting|open|update|move)"
         return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF3 - try to find false negatives
     @labeling_function()
-    def find_false_negatives(self, comments):
+    def lf_find_false_negatives(self, comments):
         KEYS = r"\b(question|why|not issue|not wrong)"
         return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF4 - try to find false positives
     @labeling_function()
-    def find_false_positives(self, comments):
+    def lf_find_false_positives(self, comments):
         KEYS = r"\b(not fix|not done|not correct)"
         return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
+
+    # The list of my label functions
+    LFs = [lf_mark_fixed, lf_check_fixed, lf_find_false_negatives, lf_find_false_positives]
+    LF_names = {1: 'mark_fixed', 2: 'check_fixed', 3: 'find_false_negatives', 4: 'find_false_positives'}
 
     # on a fairly good amount of train data 2 LFs might just work
     # we can now start making the Ls matrix from the LFs by applying every LF on each of the data point
@@ -88,23 +99,16 @@ class CommentSnorkel:
         return self.labels.get(text) if self.labels.get(text) is not None else -1
 
     def function(self):
-        # ensure csv data only has fixed and not fixed
-        train = pd.read_csv("training csv file")  # large number of unlabelled tickets
-        test = pd.read_csv("testing csv file")  # small number of labelled tickets
-        LF_set = pd.read_csv("label function csv file")  # labelled tickets for building LF
-
-        LFs = ['mark_fixed', 'check_fixed', 'find_false_negatives', 'find_false_positives']
-        LF_names = {1: 'mark_fixed', 2: 'check_fixed', 3: 'find_false_negatives', 4: 'find_false_positives'}
 
         # We build a matrix of LF votes for each comment ticket
-        LF_matrix = self.make_Ls_matrix(LF_set, LFs)
+        LF_matrix = self.make_Ls_matrix(self.LF_set['comments'], self.LFs)
 
         # Get true labels for LF set
-        Y_LF_set = np.array(LF_set['resolution'])
+        Y_LF_set = np.array(self.LF_set['resolution'])
 
         display(lf_summary(sparse.csr_matrix(LF_matrix),
                            Y=Y_LF_set,
-                           lf_names=LF_names.values()))
+                           lf_names=self.LF_names.values()))
 
         print("label coverage: " + label_coverage(LF_matrix))
 
@@ -112,10 +116,31 @@ class CommentSnorkel:
         Y_train_majority_votes = mv.predict(LF_matrix)
         print("classification report:\n" + classification_report(Y_LF_set, Y_train_majority_votes))
 
-        Ls_train = self.make_Ls_matrix(train, LFs)
+        Ls_train = self.make_Ls_matrix(self.train, self.LFs)
 
         # You can tune the learning rate and class balance.
         model = LabelModel(k=2, seed=123)
         model.train_model(Ls_train, n_epochs=2000, print_every=1000,
-                                lr=0.0001,
-                                class_balance=np.array([0.2, 0.8]))
+                          lr=0.0001,
+                          class_balance=np.array([0.2, 0.8]))
+
+        Y_train = model.predict(Ls_train) + Y_LF_set
+
+    # another method
+    def function2(self):
+        # Apply the LFs to the unlabeled training data
+        applier = PandasLFApplier(self.LFs)
+        L_train = applier.apply(self.train)
+
+        # Train the label model and compute the training labels
+        label_model = LabelModel(cardinality=2, verbose=True)
+        label_model.fit(L_train, n_epochs=500, log_freq=50, seed=123)
+        self.train['resolution'] = label_model.predict(L=L_train, tie_break_policy="abstain")
+        df_train = self.train[self.train.resolution != self.ABSTAIN]
+
+        train_text = df_train.comments.tolist()
+        X_train = CountVectorizer(ngram_range=(1, 2)).fit_transform(train_text)
+
+        clf = LogisticRegression(solver="lbfgs")
+        clf.fit(X=X_train, y=df_train.resolution.values)
+        return clf
