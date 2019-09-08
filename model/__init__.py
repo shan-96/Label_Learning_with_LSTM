@@ -1,12 +1,9 @@
-import pandas as pd
-
-from model.Kfold import Kfold
-
-kfold = Kfold(10, None)
+from model.CommentSnorkel import CommentSnorkel
+from model.PrepareData import PrepareData
+from scrap.GlobalVars import DATAFILENAME
 
 if __name__ == "__main__":
-    n = 0
-    df = pd.read_csv("../resources/data.csv")
-    for i in df['resolution'].unique().tolist():
-        print("\'" + i + "\'" + " : " + str(n) + ",")
-        n += 1
+    prepare = PrepareData(DATAFILENAME)
+    model_trainer = CommentSnorkel()
+    trainer1, Y_Fits = model_trainer.getTrainedModel1()
+    trainer2 = model_trainer.getTrainedModel2()

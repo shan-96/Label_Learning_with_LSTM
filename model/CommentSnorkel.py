@@ -12,6 +12,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from snorkel.labeling import labeling_function, PandasLFApplier
 
+from scrap.GlobalVars import TRAIN_CSV_FILE, TEST_CSV_FILE, LF_CSV_FILE
+
 
 class CommentSnorkel:
     # voting scores
@@ -20,9 +22,9 @@ class CommentSnorkel:
     ABSTAIN = 0
 
     # ensure csv data only has fixed and not fixed
-    train = pd.read_csv("training csv file")  # large number of unlabelled tickets
-    test = pd.read_csv("testing csv file")  # small number of labelled tickets
-    LF_set = pd.read_csv("label function csv file")  # labelled tickets for building LF
+    train = pd.read_csv(TRAIN_CSV_FILE)
+    test = pd.read_csv(TEST_CSV_FILE)
+    LF_set = pd.read_csv(LF_CSV_FILE)
 
     # labels/JIRA resolutions
     labels = {
@@ -98,7 +100,7 @@ class CommentSnorkel:
     def get_label(self, text):
         return self.labels.get(text) if self.labels.get(text) is not None else -1
 
-    def function(self):
+    def getTrainedModel1(self):
 
         # We build a matrix of LF votes for each comment ticket
         LF_matrix = self.make_Ls_matrix(self.LF_set['comments'], self.LFs)
@@ -120,14 +122,16 @@ class CommentSnorkel:
 
         # You can tune the learning rate and class balance.
         model = LabelModel(k=2, seed=123)
-        model.train_model(Ls_train, n_epochs=2000, print_every=1000,
+        trainer = model.train_model(Ls_train, n_epochs=2000, print_every=1000,
                           lr=0.0001,
                           class_balance=np.array([0.2, 0.8]))
 
         Y_train = model.predict(Ls_train) + Y_LF_set
 
+        return trainer, Y_train
+
     # another method
-    def function2(self):
+    def getTrainedModel2(self):
         # Apply the LFs to the unlabeled training data
         applier = PandasLFApplier(self.LFs)
         L_train = applier.apply(self.train)
