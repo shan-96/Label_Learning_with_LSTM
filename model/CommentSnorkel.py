@@ -2,8 +2,9 @@ import re
 
 import numpy as np
 import pandas as pd
+import torch
 from displayfunction import display
-from metal import MajorityLabelVoter
+from metal import MajorityLabelVoter, EndModel
 from metal.analysis import lf_summary, label_coverage
 from metal.label_model import LabelModel
 from scipy import sparse
@@ -63,13 +64,13 @@ class CommentSnorkel:
     # LF1 - try to mark the jira fixed
     @labeling_function()
     def lf_mark_fixed(self, comments):
-        KEYS = r"\bticket (mark|fix|done|ok|verify|verified|close|resolve)"
+        KEYS = r"\(mark|fix|done|ok|verify|verified|close|resolve)"
         return self.POSITIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF2 - try to check if it is not fixed
     @labeling_function()
     def lf_check_fixed(self, comments):
-        KEYS = r"\bticket (pending|incorrect|wrong|waiting|open|update|move)"
+        KEYS = r"\(pending|incorrect|wrong|waiting|open|update|move)"
         return self.NEGATIVE if re.search(KEYS, comments) else self.ABSTAIN
 
     # LF3 - try to find false negatives
@@ -123,10 +124,14 @@ class CommentSnorkel:
         # You can tune the learning rate and class balance.
         model = LabelModel(k=2, seed=123)
         trainer = model.train_model(Ls_train, n_epochs=2000, print_every=1000,
-                          lr=0.0001,
-                          class_balance=np.array([0.2, 0.8]))
+                                    lr=0.0001,
+                                    class_balance=np.array([0.2, 0.8]))
 
         Y_train = model.predict(Ls_train) + Y_LF_set
+
+        print('Trained Label Model Metrics:')
+        scores = model.score((Ls_train[1], Y_train[1]), metric=['accuracy', 'precision', 'recall', 'f1'])
+        print(scores)
 
         return trainer, Y_train
 
@@ -134,7 +139,7 @@ class CommentSnorkel:
     def getTrainedModel2(self):
         # Apply the LFs to the unlabeled training data
         applier = PandasLFApplier(self.LFs)
-        L_train = applier.apply(self.train)
+        L_train = applier.apply(self.train['comments'])
 
         # Train the label model and compute the training labels
         label_model = LabelModel(cardinality=2, verbose=True)
@@ -147,4 +152,17 @@ class CommentSnorkel:
 
         clf = LogisticRegression(solver="lbfgs")
         clf.fit(X=X_train, y=df_train.resolution.values)
-        return clf
+        prob = clf.predict_proba(self.test)
+
+        if torch.cuda.is_available():
+            device = 'cuda'
+        else:
+            device = 'cpu'
+        end_model = EndModel([1000, 10, 2], seed=123, device=device)
+
+        end_model.train_model((self.train['comments'], self.test['comments']),
+                              valid_data=(self.train['resolution'], self.test['comments']), lr=0.01, l2=0.01,
+                              batch_size=256,
+                              n_epochs=5, checkpoint_metric='accuracy', checkpoint_metric_mode='max')
+
+        return prob

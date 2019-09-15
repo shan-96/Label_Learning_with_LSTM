@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 class Plot:
     data_points = {}
 
