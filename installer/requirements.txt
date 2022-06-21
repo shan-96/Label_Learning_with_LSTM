@@ -7,7 +7,7 @@ lazr.restfulclient==0.13.5
 lazr.uri==1.0.3
 libtools==0.2.4
 nltk==3.4.5
-numpy==1.17.0
+numpy==1.22.0
 oauth==1.0.1
 olefile==0.45.1
 pandas==0.24.2
